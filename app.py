@@ -1,8 +1,8 @@
-
 import streamlit as st
-import pandas as pd
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
 
 st.set_page_config(page_title="PowerTech Motor", layout="centered")
 
@@ -11,19 +11,22 @@ st.markdown("<h3 style='text-align: center; color: gold;'>Control de Mantenimien
 st.markdown("<p style='text-align: center; color: gray;'>Ing. Ronny Calva</p>", unsafe_allow_html=True)
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
+
+# Conexión con Google Sheets por KEY
 sheet = client.open_by_key("1Fmwe1G9mM6WQlRb4QIHq4FIoZYl2Jm3-")
 worksheet = sheet.sheet1
 
 menu = st.selectbox("Selecciona una opción", ["Buscar Vehículo", "Agregar Vehículo"])
 
 if menu == "Buscar Vehículo":
-    placa = st.text_input("Ingrese la placa del vehículo:")
+    placa = st.text_input("Ingrese la placa del vehículo:").upper()
     if placa:
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
-        resultado = df[df["Placa"] == placa.upper()]
+        resultado = df[df["Placa"] == placa]
         if not resultado.empty:
             st.dataframe(resultado)
             if st.button("Eliminar registro"):
