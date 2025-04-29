@@ -1,5 +1,6 @@
 import streamlit as st
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 
@@ -12,8 +13,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+
+# ✅ Conexión vía secrets
+creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
+
+# Hoja conectada
 sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1Fmwe1G9mM6WQlRb4QIHq4FIoZYl2Jm3-/edit")
 worksheet = sheet.get_worksheet(0)
 
