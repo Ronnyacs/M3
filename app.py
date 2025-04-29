@@ -1,71 +1,64 @@
+
 import streamlit as st
-import gspread
-import json
-from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(page_title="PowerTech Motor", layout="centered")
 
-st.markdown("""
-<h1 style='color:gold;text-align:center;'>PowerTech Motor</h1>
-<h3 style='color:white;text-align:center;'>Control de Mantenimiento</h3>
-<h5 style='color:gray;text-align:center;'>Ing. Ronny Calva</h5>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: gold;'>PowerTech Motor</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; color: gold;'>Control de Mantenimiento</h3>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Ing. Ronny Calva</p>", unsafe_allow_html=True)
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
-# ✅ Conexión vía secrets
-creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(creds)
+sheet = client.open_by_key("1Fmwe1G9mM6WQlRb4QIHq4FIoZYl2Jm3-")
+worksheet = sheet.sheet1
 
-# Hoja conectada
-sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1Fmwe1G9mM6WQlRb4QIHq4FIoZYl2Jm3-/edit")
-worksheet = sheet.get_worksheet(0)
+menu = st.selectbox("Selecciona una opción", ["Buscar Vehículo", "Agregar Vehículo"])
 
-def get_data():
-    data = worksheet.get_all_records()
-    return pd.DataFrame(data)
-
-def update_sheet(df):
-    worksheet.clear()
-    worksheet.append_row(df.columns.tolist())
-    for row in df.values.tolist():
-        worksheet.append_row(row)
-
-df = get_data()
-
-menu = st.radio("Opciones", ["Buscar / Editar / Eliminar", "Agregar nuevo registro"], horizontal=True)
-
-if menu == "Buscar / Editar / Eliminar":
-    placa = st.text_input("Buscar por placa:", "").upper()
+if menu == "Buscar Vehículo":
+    placa = st.text_input("Ingrese la placa del vehículo:")
     if placa:
-        result = df[df["Placa"] == placa]
-        if not result.empty:
-            edited = {}
-            st.subheader("Datos del vehículo")
-            for column in df.columns:
-                new_value = st.text_input(f"{column}:", result.iloc[0][column])
-                edited[column] = new_value
-            if st.button("Guardar cambios"):
-                idx = df[df["Placa"] == placa].index[0]
-                for key in edited:
-                    df.at[idx, key] = edited[key]
-                update_sheet(df)
-                st.success("Registro actualizado correctamente.")
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        resultado = df[df["Placa"] == placa.upper()]
+        if not resultado.empty:
+            st.dataframe(resultado)
             if st.button("Eliminar registro"):
-                df = df[df["Placa"] != placa]
-                update_sheet(df)
-                st.warning("Registro eliminado.")
+                idx = resultado.index[0]
+                worksheet.delete_row(idx + 2)
+                st.success("Registro eliminado")
+            else:
+                for i, row in resultado.iterrows():
+                    for col in df.columns:
+                        new_val = st.text_input(f"{col}", row[col], key=f"{col}-{i}")
+                        df.at[i, col] = new_val
+                if st.button("Guardar cambios"):
+                    idx = resultado.index[0]
+                    for col_idx, col in enumerate(df.columns):
+                        worksheet.update_cell(idx + 2, col_idx + 1, df.at[idx, col])
+                    st.success("Cambios guardados")
         else:
-            st.error("Placa no encontrada.")
+            st.warning("🚫 No se encontró esa placa en la base de datos.")
 
-if menu == "Agregar nuevo registro":
-    st.subheader("Datos del vehículo y cliente")
-    new_data = {}
-    for field in df.columns:
-        new_data[field] = st.text_input(field)
-    if st.button("Agregar"):
-        df = df.append(new_data, ignore_index=True)
-        update_sheet(df)
-        st.success("Registro agregado correctamente.")
+elif menu == "Agregar Vehículo":
+    with st.form("registro_form"):
+        placa = st.text_input("Placa").upper()
+        marca = st.text_input("Marca")
+        modelo = st.text_input("Modelo")
+        km = st.text_input("Kilometraje")
+        fecha = st.date_input("Fecha de ingreso")
+        tipo = st.text_input("Tipo de servicio")
+        obs = st.text_area("Observaciones")
+        tecnico = st.text_input("Técnico responsable")
+        cliente = st.text_input("Nombre de cliente")
+        cedula = st.text_input("Número de cédula")
+        telefono = st.text_input("Teléfono")
+        submitted = st.form_submit_button("Guardar")
+
+        if submitted:
+            values = [placa, marca, modelo, km, str(fecha), tipo, obs, tecnico, cliente, cedula, telefono]
+            worksheet.append_row(values)
+            st.success("Registro guardado exitosamente")
